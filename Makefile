@@ -1,17 +1,21 @@
 
 GO := go
 
+target = predixy_exporter
 
 all: build
 
 release: format build
 
-build:
-	$(GO) build predixy_exporter.go
+build: $(target)
+
+$(target): exporter/exporter.go $(target).go
+	$(GO) build $(target).go
 
 format:
-	$(GO) fmt predixy_exporter.go
+	$(GO) fmt exporter/exporter.go
+	$(GO) fmt $(target).go
 
 clean:
-	@rm -rf predixy_exporter
+	@rm -rf $(target)
 	@echo Done.
