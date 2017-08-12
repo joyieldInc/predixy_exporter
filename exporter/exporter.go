@@ -72,24 +72,7 @@ type Exporter struct {
 	latencyMetrics  []prometheus.Metric
 }
 
-func NewExporter(addr string) (*Exporter, error) {
-	c, err := redis.Dial("tcp", addr)
-	if err != nil {
-		log.Printf("NewExporter dial redis %s err:%q\n", addr, err)
-		return nil, err
-	}
-	defer c.Close()
-	r, err := redis.String(c.Do("INFO"))
-	if err != nil {
-		log.Printf("NewExporter redis do INFO err:%q\n", addr, err)
-		return nil, err
-	}
-	name := "none"
-	for _, line := range strings.Split(r, "\n") {
-		if strings.HasPrefix(line, "Name:") {
-			name = strings.Split(line, ":")[1]
-		}
-	}
+func NewExporter(addr, name string) (*Exporter, error) {
 	e := &Exporter{
 		addr:          addr,
 		name:          name,
@@ -113,7 +96,7 @@ func NewExporter(addr string) (*Exporter, error) {
 			Namespace:   namespace,
 			Name:        m[1],
 			Help:        m[2],
-			ConstLabels: prometheus.Labels{"cluster": name},
+            ConstLabels: prometheus.Labels{"cluster": name, "addr": addr},
 		})
 	}
 	for _, m := range clusterGauges {

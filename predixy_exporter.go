@@ -17,10 +17,11 @@ import (
 func main() {
 	var (
 		bind    = flag.String("bind", ":9617", "Listen address")
-		predixy = flag.String("predixy", "127.0.0.1:7617", "Predixy service address")
+		addr = flag.String("addr", "127.0.0.1:7617", "Predixy service address")
+		name = flag.String("name", "none", "Redis service name")
 	)
 	flag.Parse()
-	exporter, err := exporter.NewExporter(*predixy)
+	exporter, err := exporter.NewExporter(*addr, *name)
 	if err != nil {
 		log.Fatal(err)
 	}
