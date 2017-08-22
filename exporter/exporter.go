@@ -57,7 +57,7 @@ var (
 	servLabels        = []string{"server"}
 	latencyLabels     = []string{"latency"}
 	servLatencyLabels = []string{"server", "latency"}
-	latencyBuckets    = prometheus.LinearBuckets(100, 100, 100)
+	latencyBuckets    = append(prometheus.LinearBuckets(20, 20, 100), prometheus.ExponentialBuckets(2048., 1.06437, 100)...)
 )
 
 type Exporter struct {
@@ -314,10 +314,12 @@ func (e *Exporter) parseBuckets(lines []string) (buckets []Bucket, last Bucket, 
 
 func (e *Exporter) addLatencyMetrics(buckets []Bucket, last Bucket, server bool, labels ...string) {
 	vc := make(map[float64]uint64)
+	var b float64
+	i := 0
 	j := 0
 	value := float64(0)
 	count := uint64(0)
-	for i, b := range latencyBuckets {
+	for i, b = range latencyBuckets {
 		for j < len(buckets) {
 			if float64(buckets[j].bound) <= b {
 				value += float64(buckets[j].value)
@@ -328,12 +330,33 @@ func (e *Exporter) addLatencyMetrics(buckets []Bucket, last Bucket, server bool,
 			}
 		}
 		vc[latencyBuckets[i]] = count
+		if j >= len(buckets) {
+			break
+		}
 	}
-	for ; j < len(buckets); j++ {
-		value += float64(buckets[j].value)
-		count += buckets[j].count
+	if i < len(latencyBuckets) {
+		if last.count > 0 {
+			avg := float64(last.value) / float64(last.count)
+			for ; i < len(latencyBuckets); i++ {
+				if latencyBuckets[i] < avg {
+					vc[latencyBuckets[i]] = count
+				} else {
+					count += last.count
+					break
+				}
+			}
+		}
+		for ; i < len(latencyBuckets); i++ {
+			vc[latencyBuckets[i]] = count
+		}
+	} else {
+		for ; j < len(buckets); j++ {
+			value += float64(buckets[j].value)
+			count += buckets[j].count
+		}
+		count += last.count
 	}
-	count += last.count
+	value += float64(last.value)
 	var h prometheus.Metric
 	if server {
 		h = prometheus.MustNewConstHistogram(e.servLatencyDesc, count, value, vc, labels...)
