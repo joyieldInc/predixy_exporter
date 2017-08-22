@@ -96,7 +96,7 @@ func NewExporter(addr, name string) (*Exporter, error) {
 			Namespace:   namespace,
 			Name:        m[1],
 			Help:        m[2],
-            ConstLabels: prometheus.Labels{"cluster": name, "addr": addr},
+			ConstLabels: prometheus.Labels{"cluster": name, "addr": addr},
 		})
 	}
 	for _, m := range clusterGauges {
@@ -138,6 +138,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 	e.latencyMetrics = e.latencyMetrics[:0]
+	e.resetMetrics()
 	e.scrape()
 	for _, g := range e.globalGauges {
 		ch <- g
@@ -150,6 +151,12 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	}
 	for _, m := range e.latencyMetrics {
 		ch <- m
+	}
+}
+
+func (e *Exporter) resetMetrics() {
+	for _, g := range e.servGauges {
+		g.Reset()
 	}
 }
 

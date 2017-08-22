@@ -16,7 +16,7 @@ import (
 
 func main() {
 	var (
-		bind    = flag.String("bind", ":9617", "Listen address")
+		bind = flag.String("bind", ":9617", "Listen address")
 		addr = flag.String("addr", "127.0.0.1:7617", "Predixy service address")
 		name = flag.String("name", "none", "Redis service name")
 	)
