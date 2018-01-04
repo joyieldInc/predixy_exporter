@@ -63,6 +63,7 @@ var (
 type Exporter struct {
 	mutex           sync.RWMutex
 	addr            string
+	password        string
 	name            string
 	globalGauges    map[string]prometheus.Gauge
 	clusterGauges   map[string]prometheus.Gauge
@@ -70,11 +71,20 @@ type Exporter struct {
 	latencyDesc     *prometheus.Desc
 	servLatencyDesc *prometheus.Desc
 	latencyMetrics  []prometheus.Metric
+	conn            redis.Conn
 }
 
-func NewExporter(addr, name string) (*Exporter, error) {
+func NewExporter(uri, name string) (*Exporter, error) {
+	addr := uri
+	password := ""
+	idx := strings.LastIndex(uri, "@")
+	if idx >= 0 {
+		password = uri[:idx]
+		addr = uri[idx+1:]
+	}
 	e := &Exporter{
 		addr:          addr,
+		password:      password,
 		name:          name,
 		globalGauges:  map[string]prometheus.Gauge{},
 		clusterGauges: map[string]prometheus.Gauge{},
@@ -167,15 +177,24 @@ type Bucket struct {
 }
 
 func (e *Exporter) scrape() {
-	c, err := redis.Dial("tcp", e.addr)
-	if err != nil {
-		log.Printf("dial redis %s err:%q\n", e.addr, err)
-		return
+	var err error
+	c := e.conn
+	if c == nil {
+		c, err = redis.Dial("tcp", e.addr)
+		if err != nil {
+			log.Printf("dial redis %s err:%q\n", e.addr, err)
+			return
+		}
+		e.conn = c
 	}
-	defer c.Close()
+	if len(e.password) > 0 {
+		c.Do("AUTH", e.password)
+	}
 	r, err := redis.String(c.Do("INFO"))
 	if err != nil {
 		log.Printf("redis %s do INFO err:%q\n", e.addr, err)
+		c.Close()
+		e.conn = nil
 		return
 	}
 	cpu := 0.
