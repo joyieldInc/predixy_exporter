@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -149,7 +150,10 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	defer e.mutex.Unlock()
 	e.latencyMetrics = e.latencyMetrics[:0]
 	e.resetMetrics()
-	e.scrape()
+	err := e.scrape()
+	if err != nil {
+		return
+	}
 	for _, g := range e.globalGauges {
 		ch <- g
 	}
@@ -176,14 +180,21 @@ type Bucket struct {
 	count uint64
 }
 
-func (e *Exporter) scrape() {
+func (e *Exporter) scrape() error {
 	var err error
 	c := e.conn
 	if c == nil {
-		c, err = redis.Dial("tcp", e.addr)
+		timeout := 5 * time.Second
+		c, err = redis.Dial(
+			"tcp",
+			e.addr,
+			redis.DialConnectTimeout(timeout),
+			redis.DialReadTimeout(timeout),
+			redis.DialWriteTimeout(timeout),
+		)
 		if err != nil {
 			log.Printf("dial redis %s err:%q\n", e.addr, err)
-			return
+			return err
 		}
 		e.conn = c
 	}
@@ -195,7 +206,7 @@ func (e *Exporter) scrape() {
 		log.Printf("redis %s do INFO err:%q\n", e.addr, err)
 		c.Close()
 		e.conn = nil
-		return
+		return err
 	}
 	cpu := 0.
 	scope := globalScope
@@ -270,7 +281,7 @@ func (e *Exporter) scrape() {
 		g.Set(cpu)
 	}
 	if len(latency) == 0 || len(servs) == 0 {
-		return
+		return nil
 	}
 	for _, server := range servs {
 		r, err = redis.String(c.Do("INFO", "ServerLatency", server))
@@ -293,6 +304,7 @@ func (e *Exporter) scrape() {
 			}
 		}
 	}
+	return nil
 }
 
 func (e *Exporter) parseBuckets(lines []string) (buckets []Bucket, last Bucket, lineNum int, ok bool) {
