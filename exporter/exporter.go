@@ -58,7 +58,11 @@ var (
 	servLabels        = []string{"server"}
 	latencyLabels     = []string{"latency"}
 	servLatencyLabels = []string{"server", "latency"}
-	latencyBuckets    = append(prometheus.LinearBuckets(20, 20, 100), prometheus.ExponentialBuckets(2048., 1.06437, 100)...)
+	// TODO: Instead of using hardcoded bounds, use bounds parsed from redis cli corresponding
+	// to each latency monitor. These bounds are defined in latency.conf which is feeded to
+	// predixy during boot up.
+	latencyBuckets = []float64{100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 3000,
+		4000, 5000, 6000}
 )
 
 type Exporter struct {
